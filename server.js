@@ -64,7 +64,7 @@ app.post("/verify", async (req, res) => {
         name: guest.name,
         zone: guest.zone,
         status: "blocked",
-        message: "IMEZUIWA - SUBIRI DK 45",
+        message: "BLOCKED - WAIT 45 MINS ",
       });
     }
 
@@ -75,7 +75,7 @@ app.post("/verify", async (req, res) => {
       name: guest.name,
       zone: guest.zone,
       status: "success",
-      message: "IMETHIBITISHWA",
+      message: "✅SUCCESSFULLY",
     });
 
   } catch (err) {
