@@ -11,7 +11,7 @@ app.use(express.json());
 const db = mysql.createPool({
   host: "127.0.0.1",
   user: "root",
-  password: "Leonard1234#1234",
+  password: "Leonard1234#1234", // Badilisha kama production
   database: "wedding",
   waitForConnections: true,
   connectionLimit: 10,
@@ -111,6 +111,18 @@ app.get("/recent-scans", async (req, res) => {
       LIMIT 20
     `);
     res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ===== Delete Guest (Optional Admin) =====
+app.delete("/guest/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.query("DELETE FROM summit WHERE id = ?", [id]);
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
