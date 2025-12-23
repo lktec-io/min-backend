@@ -1,0 +1,21 @@
+{
+   "name": "min-backend",
+   "version": "1.0.0",
+   "description": "Backend API for Verification system",
+   "main": "server.js",
+   "type": "module",
+   "scripts": {
+      "start": "node server.js",
+      "dev": "nodemon server.js"
+   },
+   "dependencies": {
+      "cors": "^2.8.5",
+      "dotenv": "^17.2.3",
+      "express": "^5.2.1",
+      "mysql2": "^3.16.0",
+      "nanoid": "^5.1.6",
+      "nodemon": "^3.1.11",
+      "qrcode": "^1.5.4",
+      "uuid": "^13.0.0"
+   }
+}
