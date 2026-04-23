@@ -46,7 +46,6 @@ app.post("/create-guest", async (req, res) => {
 });
 
 // ===== Verify QR =====
-// ===== Verify QR =====
 app.post("/verify", async (req, res) => {
   try {
     const { qr_code } = req.body;
@@ -56,35 +55,38 @@ app.post("/verify", async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: "Guest not found" });
 
     const guest = rows[0];
+    const now = new Date();
     const last = guest.last_scanned ? new Date(guest.last_scanned) : null;
 
-    // If already scanned once → expired
-    if (last) {
-      return res.json({
-        name: guest.name,
-        zone: guest.zone,
-        status: "expired",
-        message: "Expired - Already scanned",
-      });
-    }
+    // Check 45 min rule
+   // Check if already scanned once → expired
+if (last) {
+  return res.json({
+    name: guest.name,
+    zone: guest.zone,
+    status: "expired",
+    message: "Expired - Already scanned",
+  });
+}
 
-    // First time scan → success, then mark expired
-    const now = new Date();
-    await db.query("UPDATE summit SET last_scanned = ? WHERE qr_code = ?", [now, qr_code]);
 
-    return res.json({
-      name: guest.name,
-      zone: guest.zone,
-      status: "success",
-      message: "✅SUCCESSFULLY",
-    });
+    // Update last_scanned
+  // Update last_scanned
+await db.query("UPDATE summit SET last_scanned = ? WHERE id = ?", [now, guest.id]);
+
+return res.json({
+  name: guest.name,
+  zone: guest.zone,
+  status: "success",
+  message: "✅SUCCESSFULLY",
+});
+
 
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 });
-
 
 // ===== Stats (Dashboard) =====
 app.get("/stats", async (req, res) => {
