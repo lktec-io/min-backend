@@ -60,17 +60,33 @@ app.post("/verify", async (req, res) => {
 
     // Check 45 min rule
     // if (last && (now - last) < 45 * 60 * 1000) {
-         if (last && (now - last) > 7 * 24 * 60 * 60 * 1000) {
-      return res.json({
-        name: guest.name,
-        zone: guest.zone,
-        status: "expired",
-        message: "Scan expired - more than 1 week",
-      });
-    }
+const now = new Date();
+
+// ❌ Already used → block kabisa
+if (guest.last_scanned) {
+  return res.json({
+    name: guest.name,
+    zone: guest.zone,
+    status: "expired",
+    message: "QR already used",
+  });
+}
+
+// ✅ First time scan → allow
+await db.query(
+  "UPDATE summit SET last_scanned = ? WHERE id = ?",
+  [now, guest.id]
+);
+
+// return res.json({
+//   name: guest.name,
+//   zone: guest.zone,
+//   status: "success",
+//   message: "✅ SUCCESSFULLY",
+// });
 
     // Update last_scanned
-    await db.query("UPDATE summit SET last_scanned = ? WHERE id = ?", [now, guest.id]);
+    // await db.query("UPDATE summit SET last_scanned = ? WHERE id = ?", [now, guest.id]);
 
     return res.json({
       name: guest.name,
