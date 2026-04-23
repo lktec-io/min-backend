@@ -51,31 +51,41 @@ app.post("/verify", async (req, res) => {
     const { qr_code } = req.body;
     if (!qr_code) return res.status(400).json({ error: "QR code missing" });
 
-    const [rows] = await db.query("SELECT * FROM summit WHERE qr_code = ?", [qr_code]);
-    if (rows.length === 0) return res.status(404).json({ error: "Guest not found" });
+    const [rows] = await db.query(
+      "SELECT * FROM summit WHERE qr_code = ?",
+      [qr_code]
+    );
+
+    if (rows.length === 0)
+      return res.status(404).json({ error: "Guest not found" });
 
     const guest = rows[0];
     const now = new Date();
-    const last = guest.last_scanned ? new Date(guest.last_scanned) : null;
 
-    // Check 45 min rule
-    if (last && (now - last) < 45 * 60 * 1000) {
+    // 👉 Hakikisha una created_at kwenye DB
+    const createdAt = new Date(guest.created_at || guest.createdAt);
+
+    // 🔴 EXPIRE AFTER 7 DAYS ONLY
+    if (now - createdAt > 7 * 24 * 60 * 60 * 1000) {
       return res.json({
         name: guest.name,
         zone: guest.zone,
-        status: "blocked",
-        message: "BLOCKED - WAIT 45 MINS ",
+        status: "expired",
+        message: "QR expired (valid for 7 days only)",
       });
     }
 
-    // Update last_scanned
-    await db.query("UPDATE summit SET last_scanned = ? WHERE id = ?", [now, guest.id]);
+    // 🟢 ALLOW SCAN (no 45 min restriction)
+    await db.query(
+      "UPDATE summit SET last_scanned = ? WHERE id = ?",
+      [now, guest.id]
+    );
 
     return res.json({
       name: guest.name,
       zone: guest.zone,
       status: "success",
-      message: "✅SUCCESSFULLY",
+      message: "✅ SUCCESSFULLY",
     });
 
   } catch (err) {
@@ -83,7 +93,6 @@ app.post("/verify", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
 // ===== Stats (Dashboard) =====
 app.get("/stats", async (req, res) => {
   try {
