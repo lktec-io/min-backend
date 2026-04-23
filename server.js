@@ -59,12 +59,13 @@ app.post("/verify", async (req, res) => {
     const last = guest.last_scanned ? new Date(guest.last_scanned) : null;
 
     // Check 45 min rule
-    if (last && (now - last) < 45 * 60 * 1000) {
+    // if (last && (now - last) < 45 * 60 * 1000) {
+    if (last && (now - last) > 7 * 24 * 60 * 60 * 1000) {
       return res.json({
         name: guest.name,
         zone: guest.zone,
         status: "blocked",
-        message: "BLOCKED - WAIT 45 MINS ",
+        message: "Expired - Already scanned",
       });
     }
 
