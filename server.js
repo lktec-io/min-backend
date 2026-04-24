@@ -2,7 +2,6 @@ import express from "express";
 import mysql from "mysql2/promise";
 import cors from "cors";
 import QRCode from "qrcode";
-import { nanoid } from "nanoid";
 
 const app = express();
 app.use(cors());
@@ -11,7 +10,7 @@ app.use(express.json());
 const db = mysql.createPool({
   host: "127.0.0.1",
   user: "root",
-  password: "Leonard1234#1234", // Badilisha kama production
+  password: "Leonard1234#1234",
   database: "wedding",
   waitForConnections: true,
   connectionLimit: 10,
@@ -23,22 +22,24 @@ console.log("✅ Connected to MySQL database (using connection pool)");
 // ===== Create Guest + Generate QR =====
 app.post("/create-guest", async (req, res) => {
   try {
-    const { name, zone } = req.body;
-    if (!name || !zone) return res.status(400).json({ error: "Name or zone missing" });
-
-    // Generate unique QR code token
-    const qr_code = nanoid(16);
-
-    // Insert guest into DB
-    await db.query(
-      "INSERT INTO summit (name, zone, qr_code) VALUES (?, ?, ?)",
-      [name, zone, qr_code]
+    const [rows] = await db.query(
+      "SELECT qr_code FROM summit ORDER BY id DESC LIMIT 1"
     );
 
-    // Generate QR image (Data URL)
+    let nextNumber = 1;
+    if (rows.length > 0) {
+      const lastCode = rows[0].qr_code; // e.g. "CN-007"
+      const lastNumber = parseInt(lastCode.replace("CN-", ""), 10);
+      if (!isNaN(lastNumber)) nextNumber = lastNumber + 1;
+    }
+
+    const qr_code = `CN-${String(nextNumber).padStart(3, "0")}`;
+
+    await db.query("INSERT INTO summit (qr_code) VALUES (?)", [qr_code]);
+
     const qrImage = await QRCode.toDataURL(qr_code);
 
-    res.json({ qr_code, qrImage, name, zone });
+    res.json({ qr_code, qrImage });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -51,37 +52,33 @@ app.post("/verify", async (req, res) => {
     const { qr_code } = req.body;
     if (!qr_code) return res.status(400).json({ error: "QR code missing" });
 
-    const [rows] = await db.query("SELECT * FROM summit WHERE qr_code = ?", [qr_code]);
+    const [rows] = await db.query(
+      "SELECT * FROM summit WHERE qr_code = ?",
+      [qr_code]
+    );
     if (rows.length === 0) return res.status(404).json({ error: "Guest not found" });
 
     const guest = rows[0];
     const now = new Date();
-    const last = guest.last_scanned ? new Date(guest.last_scanned) : null;
 
-    // Check 45 min rule
-   // Check if already scanned once → expired
-if (last) {
-  return res.json({
-    name: guest.name,
-    zone: guest.zone,
-    status: "expired",
-    message: "Expired - Already scanned",
-  });
-}
+    // Check 7-day expiry from created_at
+    const createdAt = new Date(guest.created_at);
+    const diffDays = (now - createdAt) / (1000 * 60 * 60 * 24);
+    if (diffDays > 7) {
+      return res.json({
+        qr_code: guest.qr_code,
+        status: "expired",
+        message: "Expired - QR code is older than 7 days",
+      });
+    }
 
+    await db.query("UPDATE summit SET last_scanned = ? WHERE id = ?", [now, guest.id]);
 
-    // Update last_scanned
-  // Update last_scanned
-await db.query("UPDATE summit SET last_scanned = ? WHERE id = ?", [now, guest.id]);
-
-return res.json({
-  name: guest.name,
-  zone: guest.zone,
-  status: "success",
-  message: "✅SUCCESSFULLY",
-});
-
-
+    return res.json({
+      qr_code: guest.qr_code,
+      status: "success",
+      message: "✅ Successfully verified",
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -91,13 +88,13 @@ return res.json({
 // ===== Stats (Dashboard) =====
 app.get("/stats", async (req, res) => {
   try {
-    const [rows] = await db.query(`
-      SELECT zone, COUNT(*) AS total,
-      SUM(CASE WHEN last_scanned IS NOT NULL THEN 1 ELSE 0 END) AS scanned
+    const [[totals]] = await db.query(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN last_scanned IS NOT NULL THEN 1 ELSE 0 END) AS scanned
       FROM summit
-      GROUP BY zone
     `);
-    res.json(rows);
+    res.json(totals);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
@@ -108,7 +105,7 @@ app.get("/stats", async (req, res) => {
 app.get("/recent-scans", async (req, res) => {
   try {
     const [rows] = await db.query(`
-      SELECT name, zone, last_scanned
+      SELECT qr_code, last_scanned
       FROM summit
       WHERE last_scanned IS NOT NULL
       ORDER BY last_scanned DESC
